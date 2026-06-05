@@ -1,0 +1,50 @@
+[Unit]
+Description=X API MCP Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mcp
+Group=mcp
+WorkingDirectory=/opt/x-api-mcp
+
+Environment=PORT=3000
+Environment=HOST=127.0.0.1
+Environment=MCP_PATH=/mcp
+
+# Store these with systemd-creds or another secret manager.
+LoadCredentialEncrypted=X_API_KEY:/etc/x-api-mcp/X_API_KEY.cred
+LoadCredentialEncrypted=X_API_KEY_SECRET:/etc/x-api-mcp/X_API_KEY_SECRET.cred
+LoadCredentialEncrypted=X_ACCESS_TOKEN:/etc/x-api-mcp/X_ACCESS_TOKEN.cred
+LoadCredentialEncrypted=X_ACCESS_TOKEN_SECRET:/etc/x-api-mcp/X_ACCESS_TOKEN_SECRET.cred
+LoadCredentialEncrypted=MCP_BEARER_TOKEN:/etc/x-api-mcp/MCP_BEARER_TOKEN.cred
+
+# Optional OAuth 2.0 credentials for bookmark/like endpoints.
+ImportCredential=X_USER_ACCESS_TOKEN
+ImportCredential=X_OAUTH2_REFRESH_TOKEN
+ImportCredential=X_OAUTH2_CLIENT_ID
+ImportCredential=X_OAUTH2_CLIENT_SECRET
+ImportCredential=X_USER_ID
+
+ExecStart=/usr/bin/node /opt/x-api-mcp/dist/server.js
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/x-api-mcp
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target
+
