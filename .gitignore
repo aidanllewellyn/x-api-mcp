@@ -4,6 +4,8 @@
 node_modules/
 dist/
 coverage/
+__pycache__/
+**/__pycache__/
 .DS_Store
 *.log
 *.sqlite
@@ -17,4 +19,3 @@ coverage/
 *.jsonl
 .cache/
 .tmp/
-

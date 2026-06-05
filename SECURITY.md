@@ -35,5 +35,4 @@ This avoids inbound service exposure and removes the need for local SSH tunnels 
 
 ## Local MCP Clients
 
-Use the stdio proxy in `scripts/x-api-mcp-stdio`. Store `X_API_MCP_AUTHORIZATION` in a local secret environment or password manager. Do not place bearer tokens in MCP config files.
-
+Use the stdio proxy in `scripts/x-api-mcp-stdio`. Store `X_API_MCP_AUTHORIZATION` in a local secret environment or password manager. Do not place bearer tokens in MCP config files. The proxy requires HTTPS for remote endpoints and allows plain HTTP only for localhost development.

@@ -334,7 +334,7 @@ export class XClient {
   }
 }
 
-function filterPostPayload(payload: JsonObject, query?: string): JsonObject {
+export function filterPostPayload(payload: JsonObject, query?: string): JsonObject {
   const normalizedQuery = query?.trim().toLowerCase();
   if (!normalizedQuery) {
     return payload;
@@ -365,7 +365,7 @@ function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function normalizeEndpoint(endpoint: string): string {
+export function normalizeEndpoint(endpoint: string): string {
   const trimmed = endpoint.trim();
   if (!trimmed.startsWith("/")) {
     throw new Error("Endpoint must start with /.");
@@ -380,7 +380,7 @@ function normalizeEndpoint(endpoint: string): string {
   return trimmed.startsWith("/2/") ? trimmed.slice(2) : trimmed;
 }
 
-function serializeQuery(query?: LowCostRequestInput["query"]): string {
+export function serializeQuery(query?: LowCostRequestInput["query"]): string {
   if (!query) {
     return "";
   }
@@ -400,7 +400,7 @@ function serializeQuery(query?: LowCostRequestInput["query"]): string {
   return params.size ? `?${params.toString()}` : "";
 }
 
-function assertLowCostEndpoint(method: LowCostRequestInput["method"], endpoint: string, body?: Record<string, JsonValue>): void {
+export function assertLowCostEndpoint(method: LowCostRequestInput["method"], endpoint: string, body?: Record<string, JsonValue>): void {
   if (method === "GET" && endpointMatches(endpoint, LOW_COST_GET_PATTERNS)) {
     return;
   }

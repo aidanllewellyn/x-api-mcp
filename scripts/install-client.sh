@@ -52,6 +52,7 @@ $action wrapper: $target
 Add these variables to your local secret environment:
   export X_API_MCP_URL="$url"
   export X_API_MCP_AUTHORIZATION="Bearer <token>"
+  export X_API_MCP_TIMEOUT_SECONDS=300
 
 Codex/Claude command:
   /bin/bash -lc 'set -a; [ -f ~/.secrets.env ] && . ~/.secrets.env; set +a; exec $target'

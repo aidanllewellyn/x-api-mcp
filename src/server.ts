@@ -34,6 +34,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { isBearerAuthorized } from "./httpAuth.js";
 import { XClient } from "./xClient.js";
 import type { LowCostRequestInput } from "./xClient.js";
 
@@ -41,6 +42,7 @@ const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const MCP_PATH = process.env.MCP_PATH ?? "/mcp";
 const MCP_BEARER_TOKEN = process.env.MCP_BEARER_TOKEN?.trim();
+const SESSION_TTL_MS = parseInteger(process.env.MCP_SESSION_TTL_MS, 30 * 60 * 1000);
 
 const allowedTweetFields = [
   "id",
@@ -73,7 +75,7 @@ function createServer(): McpServer {
   const server = new McpServer(
     {
       name: "x-api-cheap-reads",
-      version: "0.3.0",
+      version: "0.4.0",
     },
     {
       instructions:
@@ -287,8 +289,7 @@ app.use(MCP_PATH, (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
-  const [scheme, token] = (req.headers.authorization ?? "").split(/\s+/, 2);
-  if (scheme?.toLowerCase() === "bearer" && token === MCP_BEARER_TOKEN) {
+  if (isBearerAuthorized(req.headers.authorization, MCP_BEARER_TOKEN)) {
     next();
     return;
   }
@@ -302,14 +303,23 @@ app.use(MCP_PATH, (req: Request, res: Response, next: NextFunction) => {
 });
 app.use(express.json({ limit: "1mb" }));
 
-const transports: Record<string, StreamableHTTPServerTransport> = {};
+type SessionRecord = {
+  transport: StreamableHTTPServerTransport;
+  lastSeen: number;
+};
+
+const transports: Record<string, SessionRecord> = {};
+
+const cleanupTimer = setInterval(closeExpiredSessions, Math.max(60_000, Math.min(SESSION_TTL_MS, 5 * 60_000)));
+cleanupTimer.unref();
 
 app.post(MCP_PATH, async (req: Request, res: Response) => {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
 
   try {
-    if (sessionId && transports[sessionId]) {
-      await transports[sessionId].handleRequest(req, res, req.body);
+    const existingTransport = getTransport(sessionId);
+    if (existingTransport) {
+      await existingTransport.handleRequest(req, res, req.body);
       return;
     }
 
@@ -318,7 +328,7 @@ app.post(MCP_PATH, async (req: Request, res: Response) => {
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (initializedSessionId) => {
-          transports[initializedSessionId] = transport;
+          transports[initializedSessionId] = { transport, lastSeen: Date.now() };
         },
       });
 
@@ -367,7 +377,13 @@ app.delete(MCP_PATH, async (req: Request, res: Response) => {
 });
 
 app.get("/health", (_req: Request, res: Response) => {
-  res.json({ ok: true, name: "x-api-mcp-server" });
+  res.json({
+    ok: true,
+    name: "x-api-mcp-server",
+    authRequired: Boolean(MCP_BEARER_TOKEN),
+    activeSessions: Object.keys(transports).length,
+    sessionTtlMs: SESSION_TTL_MS,
+  });
 });
 
 const httpServer = app.listen(PORT, HOST, () => {
@@ -382,16 +398,53 @@ function getSessionTransport(
   res: Response,
 ): StreamableHTTPServerTransport | undefined {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
-  if (!sessionId || !transports[sessionId]) {
+  const transport = getTransport(sessionId);
+  if (!transport) {
     res.status(400).send("Invalid or missing MCP session ID.");
     return undefined;
   }
 
-  return transports[sessionId];
+  return transport;
 }
 
 async function shutdown(): Promise<void> {
   httpServer.close();
-  await Promise.all(Object.values(transports).map((transport) => transport.close()));
+  clearInterval(cleanupTimer);
+  await Promise.all(Object.values(transports).map(({ transport }) => transport.close()));
   process.exit(0);
+}
+
+function parseInteger(value: string | undefined, fallback: number): number {
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function getTransport(sessionId: string | undefined): StreamableHTTPServerTransport | undefined {
+  if (!sessionId) {
+    return undefined;
+  }
+
+  const record = transports[sessionId];
+  if (!record) {
+    return undefined;
+  }
+
+  record.lastSeen = Date.now();
+  return record.transport;
+}
+
+async function closeExpiredSessions(): Promise<void> {
+  const cutoff = Date.now() - SESSION_TTL_MS;
+  const expired = Object.entries(transports).filter(([, record]) => record.lastSeen < cutoff);
+
+  await Promise.all(
+    expired.map(async ([sessionId, record]) => {
+      delete transports[sessionId];
+      await record.transport.close();
+    }),
+  );
 }
