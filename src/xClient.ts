@@ -134,7 +134,11 @@ export class XClient {
     return this.request(input.method, `${endpoint}${suffix}`, { body: input.body, authMode: input.authMode });
   }
 
-  private async getOwnPostCollection(collection: "bookmarks" | "liked_tweets", input: SearchOwnPostsInput, authMode?: AuthMode): Promise<JsonObject> {
+  private async getOwnPostCollection(
+    collection: "bookmarks" | "liked_tweets",
+    input: SearchOwnPostsInput,
+    authMode?: AuthMode,
+  ): Promise<JsonObject> {
     const userId = await this.getAuthenticatedUserId();
     const query = new URLSearchParams();
     if (input.maxResults) {
@@ -148,7 +152,9 @@ export class XClient {
     }
 
     const suffix = query.size ? `?${query.toString()}` : "";
-    const payload = await this.request("GET", `/users/${encodeURIComponent(userId)}/${collection}${suffix}`, { authMode });
+    const payload = await this.request("GET", `/users/${encodeURIComponent(userId)}/${collection}${suffix}`, {
+      authMode,
+    });
     return filterPostPayload(payload, input.query);
   }
 
@@ -168,7 +174,9 @@ export class XClient {
       return data.id;
     }
 
-    throw new Error("Could not determine authenticated X user ID. Set X_USER_ID or use credentials that can call /2/users/me.");
+    throw new Error(
+      "Could not determine authenticated X user ID. Set X_USER_ID or use credentials that can call /2/users/me.",
+    );
   }
 
   private async resolveRequestedUserId(input: SearchUserPostsInput): Promise<string> {
@@ -219,7 +227,12 @@ export class XClient {
     const text = await response.text();
     const payload = text ? parseJson(text) : {};
 
-    if (response.status === 401 && options.authMode === "oauth2" && !options.didRefresh && this.auth.oauth2?.refreshToken) {
+    if (
+      response.status === 401 &&
+      options.authMode === "oauth2" &&
+      !options.didRefresh &&
+      this.auth.oauth2?.refreshToken
+    ) {
       await this.refreshOAuth2AccessToken();
       return this.request(method, pathWithQuery, { ...options, authMode: "oauth2", didRefresh: true });
     }
@@ -400,7 +413,11 @@ export function serializeQuery(query?: LowCostRequestInput["query"]): string {
   return params.size ? `?${params.toString()}` : "";
 }
 
-export function assertLowCostEndpoint(method: LowCostRequestInput["method"], endpoint: string, body?: Record<string, JsonValue>): void {
+export function assertLowCostEndpoint(
+  method: LowCostRequestInput["method"],
+  endpoint: string,
+  body?: Record<string, JsonValue>,
+): void {
   if (method === "GET" && endpointMatches(endpoint, LOW_COST_GET_PATTERNS)) {
     return;
   }

@@ -1,11 +1,12 @@
 # X API MCP
 
+[![CI](https://github.com/aidanllewellyn/x-api-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/aidanllewellyn/x-api-mcp/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%3E%3D20-339933)
 ![MCP](https://img.shields.io/badge/MCP-Streamable_HTTP-2f6fed)
 ![Auth](https://img.shields.io/badge/hosted_auth-Bearer_required-success)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Production-oriented MCP server for X API workflows that need cheap, controlled, authenticated access from Claude, Codex, and other MCP clients.
+Production-oriented MCP server for X (Twitter) API workflows that need cheap, controlled, authenticated access from Claude, Codex, and other MCP clients.
 
 The repo is built around a simple operating principle: local agents should not depend on Tailscale sessions, SSH port-forwards, browser logins, or private keys just to keep an MCP available. Clients run a small stdio proxy, the proxy calls a stable HTTPS endpoint, and the hosted MCP endpoint enforces bearer auth.
 
@@ -27,6 +28,17 @@ MCP client
 - Timing-safe bearer-token comparison for hosted MCP auth.
 - Bounded Streamable HTTP session tracking with idle-session cleanup.
 - Unit-tested endpoint normalization, URL-create blocking, local filtering, and bearer parsing.
+
+## Design Notes
+
+The non-obvious decisions, and why they were made:
+
+- **Stdio proxy → hosted HTTPS, not a local listener.** Agents on a laptop should not need a long-lived localhost daemon, an SSH tunnel, or a VPN session to reach the MCP. The client runs a thin stdio↔HTTPS shim and the real server lives behind one stable URL, so the same endpoint works from Claude Desktop, Claude Code, Codex, or CI without per-machine plumbing.
+- **An allowlist is the cost model.** X bills per surface, and `Content: Create with URL` is the expensive one. Rather than trust the model to avoid it, `x_low_cost_request` rejects any endpoint not on an explicit allowlist and blocks Post creation whose body contains a URL — the guardrail is code, not a prompt.
+- **Timing-safe auth.** Bearer comparison hashes both sides and uses `timingSafeEqual`, so a wrong token can't be recovered byte-by-byte from response timing.
+- **Stateless client, module-scoped caches.** A fresh `XClient` is built per tool call (no shared request state to leak between calls), while user-ID and username→ID lookups are cached at module scope to avoid re-resolving on every request.
+- **Honest tool annotations.** Each tool ships `readOnlyHint` / `destructiveHint` so MCP clients can surface or gate the one destructive tool (`x_delete_post`) instead of treating every call alike.
+- **Localhost binding by default.** The Node process binds `127.0.0.1`; public HTTPS is terminated by Cloudflare Tunnel or a reverse proxy, so the app is never directly exposed.
 
 ## One-Command Verification
 
@@ -191,10 +203,11 @@ See [SECURITY.md](SECURITY.md).
 ## Testing And Audit
 
 ```bash
+npm run lint        # Biome lint + format check
 npm run typecheck
 npm test
 npm run build
-scripts/verify.sh
+scripts/verify.sh   # all of the above, plus an optional live endpoint handshake
 ```
 
 Useful public-release checks:
@@ -213,6 +226,22 @@ The deployment examples in [deploy/](deploy/) assume:
 - Cloudflare Tunnel or Caddy terminates public HTTPS.
 - Server credentials are stored through environment variables, `systemd-creds`, or another secret manager.
 - Local MCP clients use the stdio proxy and only store auth in local secret storage.
+
+## Repository Layout
+
+```text
+src/
+  server.ts        Express + Streamable HTTP transport, tool registration, session lifecycle
+  xClient.ts       X API client: OAuth 1.0a/2.0, cost allowlist, local filtering
+  httpAuth.ts      Timing-safe bearer-token verification
+  *.test.ts        Unit tests (node:test) for auth, allowlist, normalization, filtering
+scripts/
+  install-client.sh  Install the local stdio proxy for an MCP client
+  x-api-mcp-stdio    The stdio↔HTTPS proxy itself
+  verify.sh          lint → typecheck → test → build (+ optional live handshake)
+deploy/            Caddy, systemd unit, and Cloudflare Tunnel examples
+.github/workflows/ CI: lint, typecheck, test, build on Node 20 and 22
+```
 
 ## License
 

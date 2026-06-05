@@ -38,7 +38,7 @@ import { isBearerAuthorized } from "./httpAuth.js";
 import { XClient } from "./xClient.js";
 import type { LowCostRequestInput } from "./xClient.js";
 
-const PORT = parseInt(process.env.PORT ?? "3000", 10);
+const PORT = Number.parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const MCP_PATH = process.env.MCP_PATH ?? "/mcp";
 const MCP_BEARER_TOKEN = process.env.MCP_BEARER_TOKEN?.trim();
@@ -105,10 +105,7 @@ function createServer(): McpServer {
       description: "Fetch one X Post by ID. This is the only read helper exposed to keep API usage cheap.",
       inputSchema: {
         id: z.string().regex(/^\d+$/, "Post ID must be a numeric string."),
-        tweetFields: z
-          .array(z.enum(allowedTweetFields))
-          .optional()
-          .describe("Optional Post fields to request."),
+        tweetFields: z.array(z.enum(allowedTweetFields)).optional().describe("Optional Post fields to request."),
       },
       annotations: {
         readOnlyHint: true,
@@ -126,13 +123,15 @@ function createServer(): McpServer {
       description:
         "Fetch the authenticated user's own bookmarked Posts and optionally filter that page by text. Requires OAuth 2.0 user-context auth with bookmark.read; OAuth 1.0a tokens cannot use this endpoint. Qualifies for X Owned Reads pricing only when the authenticated user owns the developer app.",
       inputSchema: {
-        query: z.string().min(1).max(200).optional().describe("Optional case-insensitive text filter applied locally to the fetched page."),
+        query: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Optional case-insensitive text filter applied locally to the fetched page."),
         maxResults: z.number().int().min(1).max(100).optional().describe("Maximum Posts to fetch from X, 1-100."),
         paginationToken: z.string().min(1).optional().describe("Optional X pagination token for the next page."),
-        tweetFields: z
-          .array(z.enum(allowedTweetFields))
-          .optional()
-          .describe("Optional Post fields to request."),
+        tweetFields: z.array(z.enum(allowedTweetFields)).optional().describe("Optional Post fields to request."),
       },
       annotations: {
         readOnlyHint: true,
@@ -150,13 +149,15 @@ function createServer(): McpServer {
       description:
         "Fetch Posts liked by the authenticated user and optionally filter that page by text. Qualifies for X Owned Reads pricing only when the authenticated user owns the developer app.",
       inputSchema: {
-        query: z.string().min(1).max(200).optional().describe("Optional case-insensitive text filter applied locally to the fetched page."),
+        query: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Optional case-insensitive text filter applied locally to the fetched page."),
         maxResults: z.number().int().min(1).max(100).optional().describe("Maximum Posts to fetch from X, 1-100."),
         paginationToken: z.string().min(1).optional().describe("Optional X pagination token for the next page."),
-        tweetFields: z
-          .array(z.enum(allowedTweetFields))
-          .optional()
-          .describe("Optional Post fields to request."),
+        tweetFields: z.array(z.enum(allowedTweetFields)).optional().describe("Optional Post fields to request."),
       },
       annotations: {
         readOnlyHint: true,
@@ -184,7 +185,12 @@ function createServer(): McpServer {
           .regex(/^\d+$/, "User ID must be a numeric string.")
           .optional()
           .describe("Numeric X user ID. Provide username or userId."),
-        query: z.string().min(1).max(200).optional().describe("Optional case-insensitive text filter applied locally to the fetched page."),
+        query: z
+          .string()
+          .min(1)
+          .max(200)
+          .optional()
+          .describe("Optional case-insensitive text filter applied locally to the fetched page."),
         maxResults: z.number().int().min(5).max(100).optional().describe("Maximum Posts to fetch from X, 5-100."),
         paginationToken: z.string().min(1).optional().describe("Optional X pagination token for the next page."),
         exclude: z
@@ -203,10 +209,7 @@ function createServer(): McpServer {
           .describe("Return Posts before this Post ID."),
         startTime: z.string().datetime().optional().describe("Oldest Post timestamp, ISO 8601."),
         endTime: z.string().datetime().optional().describe("Newest Post timestamp, ISO 8601."),
-        tweetFields: z
-          .array(z.enum(allowedTweetFields))
-          .optional()
-          .describe("Optional Post fields to request."),
+        tweetFields: z.array(z.enum(allowedTweetFields)).optional().describe("Optional Post fields to request."),
       },
       annotations: {
         readOnlyHint: true,
@@ -324,8 +327,9 @@ app.post(MCP_PATH, async (req: Request, res: Response) => {
     }
 
     if (!sessionId && isInitializeRequest(req.body)) {
-      let transport: StreamableHTTPServerTransport;
-      transport = new StreamableHTTPServerTransport({
+      // `onsessioninitialized` and `onclose` run after construction returns, so
+      // referencing `transport` inside them is safe even though it's a const.
+      const transport: StreamableHTTPServerTransport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (initializedSessionId) => {
           transports[initializedSessionId] = { transport, lastSeen: Date.now() };
@@ -393,10 +397,7 @@ const httpServer = app.listen(PORT, HOST, () => {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-function getSessionTransport(
-  req: Request,
-  res: Response,
-): StreamableHTTPServerTransport | undefined {
+function getSessionTransport(req: Request, res: Response): StreamableHTTPServerTransport | undefined {
   const sessionId = req.headers["mcp-session-id"] as string | undefined;
   const transport = getTransport(sessionId);
   if (!transport) {
