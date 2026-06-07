@@ -1,5 +1,11 @@
 import crypto from "node:crypto";
 import OAuth from "oauth-1.0a";
+import {
+  HermesTweetClient,
+  readHermesTweetReadBackendFromEnv,
+  shouldUseHermesTweetReadBackend,
+} from "./hermesTweet.js";
+import type { HermesTweetReadBackend } from "./hermesTweet.js";
 
 const X_API_BASE_URL = "https://api.x.com/2";
 
@@ -62,9 +68,17 @@ const cachedUsernameIds = new Map<string, string>();
 
 export class XClient {
   private readonly auth: XAuth;
+  private readonly hermesTweet: HermesTweetClient;
+  private readonly readBackend: HermesTweetReadBackend;
 
-  constructor(auth = readAuthFromEnv()) {
+  constructor(
+    auth = readAuthFromEnv(),
+    hermesTweet = new HermesTweetClient(),
+    readBackend = readHermesTweetReadBackendFromEnv(),
+  ) {
     this.auth = auth;
+    this.hermesTweet = hermesTweet;
+    this.readBackend = readBackend;
   }
 
   async deletePost(id: string): Promise<JsonObject> {
@@ -72,6 +86,10 @@ export class XClient {
   }
 
   async getPost(input: GetPostInput): Promise<JsonObject> {
+    if (this.shouldUseHermesTweetReadBackend()) {
+      return this.hermesTweet.getPost(input);
+    }
+
     const query = new URLSearchParams();
     if (input.tweetFields?.length) {
       query.set("tweet.fields", input.tweetFields.join(","));
@@ -82,19 +100,26 @@ export class XClient {
   }
 
   async getMe(): Promise<JsonObject> {
+    this.assertXOnlyReadTool("x_get_me");
     return this.request("GET", "/users/me?user.fields=id,name,username,verified");
   }
 
   async searchBookmarks(input: SearchOwnPostsInput): Promise<JsonObject> {
+    this.assertXOnlyReadTool("x_search_bookmarks");
     this.requireOAuth2("Bookmarks require OAuth 2.0 user-context auth with bookmark.read.");
     return this.getOwnPostCollection("bookmarks", input, "oauth2");
   }
 
   async searchLikes(input: SearchOwnPostsInput): Promise<JsonObject> {
+    this.assertXOnlyReadTool("x_search_likes");
     return this.getOwnPostCollection("liked_tweets", input);
   }
 
   async searchUserPosts(input: SearchUserPostsInput): Promise<JsonObject> {
+    if (this.shouldUseHermesTweetReadBackend()) {
+      return this.hermesTweet.searchUserPosts(input);
+    }
+
     const userId = await this.resolveRequestedUserId(input);
     const query = new URLSearchParams();
     if (input.maxResults) {
@@ -130,8 +155,22 @@ export class XClient {
   async lowCostRequest(input: LowCostRequestInput): Promise<JsonObject> {
     const endpoint = normalizeEndpoint(input.endpoint);
     assertLowCostEndpoint(input.method, endpoint, input.body);
+    if (input.method === "GET" && this.shouldUseHermesTweetReadBackend()) {
+      return this.hermesTweet.lowCostRequest({ endpoint, query: input.query });
+    }
+
     const suffix = serializeQuery(input.query);
     return this.request(input.method, `${endpoint}${suffix}`, { body: input.body, authMode: input.authMode });
+  }
+
+  private shouldUseHermesTweetReadBackend(): boolean {
+    return shouldUseHermesTweetReadBackend(this.readBackend, Boolean(this.auth.oauth1 || this.auth.oauth2));
+  }
+
+  private assertXOnlyReadTool(tool: string): void {
+    if (this.shouldUseHermesTweetReadBackend()) {
+      throw new Error(`${tool} requires X credentials and is not supported by the Hermes Tweet read backend.`);
+    }
   }
 
   private async getOwnPostCollection(
@@ -542,13 +581,7 @@ function readAuthFromEnv(): XAuth {
     };
   }
 
-  if (auth.oauth1 || auth.oauth2) {
-    return auth;
-  }
-
-  throw new Error(
-    "Missing X credentials. Set X_USER_ACCESS_TOKEN or X_API_KEY, X_API_KEY_SECRET, X_ACCESS_TOKEN, and X_ACCESS_TOKEN_SECRET.",
-  );
+  return auth;
 }
 
 function parseJson(text: string): JsonObject {

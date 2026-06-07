@@ -21,6 +21,12 @@ if (credsDir) {
     "X_API_KEY_SECRET",
     "X_ACCESS_TOKEN",
     "X_ACCESS_TOKEN_SECRET",
+    "X_API_MCP_READ_BACKEND",
+    "HERMES_TWEET_API_KEY",
+    "HERMES_TWEET_BASE_URL",
+    "HERMES_TWEET_TIMEOUT_MS",
+    "XQUIK_API_KEY",
+    "XQUIK_BASE_URL",
     "MCP_BEARER_TOKEN",
   ]) {
     try {

@@ -33,6 +33,19 @@ X_ACCESS_TOKEN=
 X_ACCESS_TOKEN_SECRET=
 ```
 
+Optional Hermes Tweet/Xquik read backend:
+
+```text
+X_API_MCP_READ_BACKEND=auto
+HERMES_TWEET_API_KEY=
+HERMES_TWEET_BASE_URL=https://xquik.com
+HERMES_TWEET_TIMEOUT_MS=30000
+XQUIK_API_KEY=
+XQUIK_BASE_URL=https://xquik.com
+```
+
+`auto` keeps X API credentials as the default. If no X credentials are configured and a Hermes Tweet or Xquik key exists, supported public read helpers use that backend. Set `X_API_MCP_READ_BACKEND=x`, `hermes`, or `xquik` to force a backend.
+
 3. Build and run:
 
 ```bash
