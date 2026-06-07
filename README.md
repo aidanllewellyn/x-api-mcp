@@ -24,6 +24,7 @@ MCP client
 - Local stdio compatibility without a localhost listener or SSH tunnel.
 - OAuth 2.0 user-context support for owned reads such as bookmarks.
 - OAuth 1.0a support for endpoints that still require classic user-context credentials.
+- Optional Hermes Tweet/Xquik read backend for public Post lookup, user timelines, and generic search reads.
 - Cost guardrails: an allowlisted generic request tool blocks unpriced or expensive surfaces.
 - Timing-safe bearer-token comparison for hosted MCP auth.
 - Bounded Streamable HTTP session tracking with idle-session cleanup.
@@ -111,6 +112,7 @@ See [INSTALL.md](INSTALL.md) for Codex, Claude Code, Claude Desktop, systemd, Ca
 | `x_delete_post` | Delete an owned Post. | Explicit destructive tool |
 
 The generic low-cost tool rejects endpoints outside the allowlist and blocks Post creation when the body contains URLs.
+When `X_API_MCP_READ_BACKEND` is `auto`, X API credentials stay the default. If no X credentials are configured and `HERMES_TWEET_API_KEY` or `XQUIK_API_KEY` exists, supported public read helpers use Hermes Tweet/Xquik instead. Set `X_API_MCP_READ_BACKEND=x`, `hermes`, or `xquik` to force a backend.
 
 ## Example Tool Calls
 
@@ -177,6 +179,19 @@ X_API_KEY_SECRET=
 X_ACCESS_TOKEN=
 X_ACCESS_TOKEN_SECRET=
 ```
+
+Optional Hermes Tweet/Xquik read backend:
+
+```text
+X_API_MCP_READ_BACKEND=auto
+HERMES_TWEET_API_KEY=
+HERMES_TWEET_BASE_URL=https://xquik.com
+HERMES_TWEET_TIMEOUT_MS=30000
+XQUIK_API_KEY=
+XQUIK_BASE_URL=https://xquik.com
+```
+
+The Hermes Tweet backend supports `x_get_post`, `x_search_user_posts`, and GET reads through `x_low_cost_request` for Post lookup, recent/all search, user lookup, and user timelines. Owned reads such as bookmarks, likes, `x_get_me`, writes, and deletes still require X credentials.
 
 Hosted MCP settings:
 
