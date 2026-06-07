@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertLowCostEndpoint, filterPostPayload, normalizeEndpoint, serializeQuery } from "./xClient.js";
+import { HermesTweetClient } from "./hermesTweet.js";
+import { XClient, assertLowCostEndpoint, filterPostPayload, normalizeEndpoint, serializeQuery } from "./xClient.js";
 
 test("normalizeEndpoint accepts /2 paths and strips the API version prefix", () => {
   assert.equal(normalizeEndpoint("/2/tweets/search/recent"), "/tweets/search/recent");
@@ -75,4 +76,37 @@ test("filterPostPayload keeps original metadata and reports local filter counts"
     unfiltered_result_count: 2,
     filtered_result_count: 1,
   });
+});
+
+test("lowCostRequest keeps unsupported Hermes reads on the X API path", async () => {
+  const client = new XClient(
+    { oauth2: { kind: "oauth2", accessToken: "x-token" } },
+    new HermesTweetClient({
+      apiKey: "xq_test",
+      fetchImpl: async () => {
+        throw new Error("Hermes should not receive this endpoint.");
+      },
+    }),
+    "hermes",
+  );
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ url: string; authorization?: string }> = [];
+  globalThis.fetch = (async (input, init) => {
+    calls.push({
+      url: String(input),
+      authorization: (init?.headers as Record<string, string> | undefined)?.Authorization,
+    });
+    return new Response(JSON.stringify({ data: { id: "me" } }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await client.lowCostRequest({ method: "GET", endpoint: "/2/users/me" });
+    assert.deepEqual(result, { data: { id: "me" } });
+    assert.deepEqual(calls, [{ url: "https://api.x.com/2/users/me", authorization: "Bearer x-token" }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

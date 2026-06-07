@@ -4,6 +4,7 @@ import {
   HermesTweetClient,
   readHermesTweetReadBackendFromEnv,
   shouldUseHermesTweetReadBackend,
+  supportsHermesTweetLowCostRead,
 } from "./hermesTweet.js";
 import type { HermesTweetReadBackend } from "./hermesTweet.js";
 
@@ -155,7 +156,7 @@ export class XClient {
   async lowCostRequest(input: LowCostRequestInput): Promise<JsonObject> {
     const endpoint = normalizeEndpoint(input.endpoint);
     assertLowCostEndpoint(input.method, endpoint, input.body);
-    if (input.method === "GET" && this.shouldUseHermesTweetReadBackend()) {
+    if (input.method === "GET" && this.shouldUseHermesTweetReadBackend() && supportsHermesTweetLowCostRead(endpoint)) {
       return this.hermesTweet.lowCostRequest({ endpoint, query: input.query });
     }
 

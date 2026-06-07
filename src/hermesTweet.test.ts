@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { HermesTweetClient, hermesTweetHeaders, shouldUseHermesTweetReadBackend } from "./hermesTweet.js";
+import {
+  HermesTweetClient,
+  hermesTweetHeaders,
+  shouldUseHermesTweetReadBackend,
+  supportsHermesTweetLowCostRead,
+} from "./hermesTweet.js";
 
 type FetchCall = {
   url: string;
@@ -33,6 +38,15 @@ test("shouldUseHermesTweetReadBackend respects explicit backend choices", () => 
   assert.equal(shouldUseHermesTweetReadBackend("x", false), false);
   assert.equal(shouldUseHermesTweetReadBackend("hermes", true), true);
   assert.equal(shouldUseHermesTweetReadBackend("xquik", true), true);
+});
+
+test("supportsHermesTweetLowCostRead only allows mapped public read endpoints", () => {
+  assert.equal(supportsHermesTweetLowCostRead("/tweets/search/recent"), true);
+  assert.equal(supportsHermesTweetLowCostRead("/tweets/123"), true);
+  assert.equal(supportsHermesTweetLowCostRead("/users/by/username/openai"), true);
+  assert.equal(supportsHermesTweetLowCostRead("/users/42/tweets"), true);
+  assert.equal(supportsHermesTweetLowCostRead("/users/me"), false);
+  assert.equal(supportsHermesTweetLowCostRead("/users/42/bookmarks"), false);
 });
 
 test("HermesTweetClient fetches and normalizes a single post", async () => {

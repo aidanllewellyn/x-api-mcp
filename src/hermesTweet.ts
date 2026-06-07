@@ -185,6 +185,17 @@ export function shouldUseHermesTweetReadBackend(backend: HermesTweetReadBackend,
   return !hasXCredentials && Boolean(readHermesTweetConfigFromEnv().apiKey);
 }
 
+export function supportsHermesTweetLowCostRead(endpoint: string): boolean {
+  return (
+    endpoint === "/tweets/search/recent" ||
+    endpoint === "/tweets/search/all" ||
+    /^\/tweets\/\d+$/.test(endpoint) ||
+    /^\/users\/by\/username\/[A-Za-z0-9_]{1,15}$/.test(endpoint) ||
+    /^\/users\/\d+$/.test(endpoint) ||
+    /^\/users\/\d+\/tweets$/.test(endpoint)
+  );
+}
+
 export function hermesTweetHeaders(apiKey: string): Record<string, string> {
   if (apiKey.startsWith("xq_")) {
     return { Accept: "application/json", "x-api-key": apiKey };
